@@ -1,0 +1,6 @@
+name = Backtype Reactions
+description = Provides a Backtype reactor for the Reactions module.
+core = 6.x
+version = "6.x-0.1"
+package = Reactions
+dependencies[] = reactions

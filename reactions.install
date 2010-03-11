@@ -1,0 +1,83 @@
+<?php
+
+/**
+ * @file
+ * Installation instructions for Reactions module.
+ */
+
+function reactions_install() {
+  drupal_install_schema('reactions');
+}
+
+function reactions_uninstall() {
+  drupal_uninstall_schema('reactions');
+}
+
+function reactions_schema() {
+  return array(
+    'reactions' => array(
+      'description' => 'Reactions to site content from external sources.',
+      'fields' => array(
+        'rid' => array(
+          'description' => 'Primary identifier.',
+          'type' => 'serial',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+        ),
+        'eid' => array(
+          'description' => 'External reaction id.',
+          'type' => 'varchar',
+          'length' => '64',
+          'not null' => TRUE,
+          'default' => '',
+        ),
+        'type' => array(
+          'description' => 'Together with eid, forms a unique combination.',
+          'type' => 'varchar',
+          'length' => '64',
+          'not null' => TRUE,
+          'default' => '',
+        ),
+        'created' => array(
+          'description' => 'Creation datetime for the reaction.',
+          'type' => 'datetime',
+          'not null' => TRUE,
+        ),
+        'reactee' => array(
+          'description' => 'Creator of the reaction, most often an external user.',
+          'type' => 'varchar',
+          'length' => '255',
+          'not null' => TRUE,
+          'default' => '',
+        ),
+        'avatar' => array(
+          'description' => 'URL to the reactee avatar.',
+          'type' => 'varchar',
+          'length' => '255',
+          'not null' => TRUE,
+          'default' => '',
+        ),
+        'message' => array(
+          'description' => 'Content of the reaction.',
+          'type' => 'text',
+          'not null' => TRUE,
+          'default' => '',
+        ),
+        'url' => array(
+          'description' => 'Internal URL to which the reaction is targetted.',
+          'type' => 'varchar',
+          'length' => '255',
+          'not null' => TRUE,
+          'default' => '',
+        ),
+      ),
+      'indexes' => array(
+        'created' => array('created'),
+      ),
+      'unique keys' => array(
+        'eid_type' => array('eid', 'type'),
+      ),
+      'primary key' => array('rid'),
+    ),
+  );
+}

@@ -1,0 +1,162 @@
+<?php
+
+/**
+ * @file
+ * Provides Backtype reactors for the Reactions module.
+ */
+
+
+/* ************************************************************************* *
+ * BACKTYPE REACTOR
+ * ************************************************************************* */
+
+/**
+ * Implementation of hook_reactions_reactors().
+ */
+function reactionsbacktype_reactions_reactors() {
+  $description = t('Uses the !backtype service to fetch reactions from blogs, Digg, Reddit, FriendFeed and Twitter',
+    array('!backtype' => '<a href="http://www.backtype.com/">Backtype</a>')
+  );
+  return array(
+    'backtype' => array(
+      'name' => 'Backtype',
+      'description' => $description,
+      'gatherer' => 'reactionsbacktype_gather',
+      'configurer' => 'reactionsbacktype_configure',
+    ),
+  );
+}
+
+/**
+ * Gatherer callback for the Backtype reactor.
+ */
+function reactionsbacktype_gather() {
+  // Check at most once every two minute, to keep below the 1000 requests limit
+  $timestamp_threshold = _reactionsbacktype_variable_lastchecked() + 120;
+  if ($timestamp_threshold >= time()) {
+    return;
+  }
+
+  $url = _reactionsbacktype_url();
+  if (empty($url) || !valid_url($url)) {
+    return array();
+  }
+
+  $response = drupal_http_request($url);
+
+  _reactionsbacktype_variable_lastchecked(time());
+
+  if ($response->code != '200') {
+    return array();
+  }
+
+  $data = json_decode($response->data);
+
+  if (empty($data->comments)) {
+    return array();
+  }
+
+  $reactions = array();
+  foreach ($data->comments as $reaction) {
+    $gatherer = 'reactionsbacktype_gather_'. $reaction->entry_type;
+    if (function_exists($gatherer)) {
+      $reactions[] = $gatherer($reaction);
+    }
+  }
+
+  return $reactions;
+}
+
+function reactionsbacktype_gather_tweet($reaction) {
+  preg_match('#<a href="(.+)">#Us', $reaction->tweet_text, $match);
+
+  $parsed_url = parse_url($match[1]);
+  $path = ltrim($parsed_url['path'], '/');
+
+  $url = db_result(db_query("SELECT src FROM {url_alias} WHERE dst = '%s'", $path));
+
+  return array(
+    'eid' => $reaction->tweet_id,
+    'type' => 'tweet',
+    'created' => $reaction->tweet_created_at,
+    'reactee' => $reaction->tweet_from_user,
+    'avatar' => $reaction->tweet_profile_image_url,
+    'message' => $reaction->tweet_text,
+    'url' => $url,
+  );
+}
+
+/**
+ * Configuration form additions for Backtype.
+ */
+function reactionsbacktype_configure() {
+  $sources = array();
+  foreach (_reactionsbacktype_sources() as $source) {
+    $sources[$source] = $source;
+  }
+
+  return array(
+    'reactionsbacktype_key' => array(
+      '#type' => 'textfield',
+      '#title' => t('API key'),
+      '#description' => t('The key found at !link, under Authentication',
+        array('!link' => '<a href="http://www.backtype.com/developers">Backtype</a>')
+      ),
+      '#default_value' => _reactionsbacktype_variable_key(),
+    ),
+    'reactionsbacktype_url' => array(
+      '#type' => 'textfield',
+      '#title' => t('URL'),
+      '#description' => t('Enter the URL to which you want to monitor reactions'),
+      '#default_value' => _reactionsbacktype_variable_url() ? _reactionsbacktype_variable_url() : 'http://',
+    ),
+    'reactionsbacktype_sources' => array(
+      '#type' => 'checkboxes',
+      '#title' => t('Sources'),
+      '#options' => $sources,
+      '#default_value' => _reactionsbacktype_variable_sources(),
+    ),
+  );
+}
+
+
+/* ************************************************************************* *
+ * HELPER FUNCTIONS
+ * ************************************************************************* */
+
+function _reactionsbacktype_url() {
+  $url = _reactionsbacktype_variable_url();
+  if (empty($url) || !valid_url($url)) {
+    return FALSE;
+  }
+  $sources = implode(',', _reactionsbacktype_variable_sources());
+  return 'http://api.backtype.com/comments/connect.json?url='. $url .'&sort=1&sources='. $sources .'&itemsperpage=100&key=3e86153e7afd78d74b4d';
+}
+
+function _reactionsbacktype_sources() {
+  return array('native', 'blog', 'digg', 'reddit', 'yc', 'friendfeed', 'twitter');
+}
+
+function _reactionsbacktype_variable($name, $default, $value = NULL) {
+  $name = 'reactionsbacktype_'. $name;
+  if ($value !== NULL) {
+    variable_set($name, $value);
+  }
+  return variable_get($name, $default);
+}
+
+function _reactionsbacktype_variable_key($value = NULL) {
+  return _reactionsbacktype_variable('key', '', $value);
+}
+
+function _reactionsbacktype_variable_url($value = NULL) {
+  return _reactionsbacktype_variable('url', '', $value);
+}
+
+function _reactionsbacktype_variable_sources($value = NULL) {
+  return _reactionsbacktype_variable('sources', array(), $value);
+}
+
+function _reactionsbacktype_variable_lastchecked($value = NULL) {
+  return _reactionsbacktype_variable('lastchecked', 0, $value);
+}

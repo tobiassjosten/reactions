@@ -1,0 +1,256 @@
+<?php
+
+/**
+ * @file
+ * Aggregates "reactions" to site content by use of pluggable backends.
+ */
+
+
+/* ************************************************************************* *
+ * REACTIONS API
+ * ************************************************************************* */
+
+/**
+ * Save a new or update a existing reaction.
+ */
+function reactions_save($reaction) {
+  $sql = "SELECT rid FROM {reactions} WHERE eid = '%s' AND type = '%s'";
+  $rid = db_result(db_query($sql, $reaction['eid'], $reaction['type']));
+
+  if ($rid) {
+    $reaction['rid'] = $rid;
+    drupal_write_record('reactions', $reaction, 'rid');
+  }
+  else {
+    drupal_write_record('reactions', $reaction);
+  }
+}
+
+
+/* ************************************************************************* *
+ * THEME FUNCTIONS
+ * ************************************************************************* */
+
+/**
+ * Implementation of hook_theme().
+ */
+function reactions_theme() {
+  return array(
+    'reaction' => array(
+      'arguments' => array(
+        'reaction' => NULL,
+      ),
+      'template' => 'reaction',
+    ),
+    'reactions' => array(
+      'arguments' => array(
+        'reactions' => array(),
+      ),
+    ),
+    'reactions_list' => array(
+      'arguments' => array(
+        'reactions' => array(),
+      ),
+      'template' => 'reactions',
+    ),
+    'reactions_empty' => array(
+      'arguments' => array(),
+    ),
+  );
+}
+
+/**
+ * Default implementation of theme_reactions().
+ */
+function theme_reactions($reactions = array()) {
+  if (!empty($reactions)) {
+    return theme('reactions_list', $reactions);
+  }
+  return theme('reactions_empty');
+}
+
+/**
+ * Default implementation of theme_reactions_header().
+ */
+function theme_reactions_header() {
+  return '<h2>'. t('Reactions') .'</h2>';
+}
+
+/**
+ * Default implementation of theme_reactions_empty().
+ */
+function theme_reactions_empty() {
+  return '<p class="empty">'. t('No reactions found') .'</p>';
+}
+
+
+/* ************************************************************************* *
+ * DRUPAL HOOKS
+ * ************************************************************************* */
+
+/**
+ * Implementation of hook_menu().
+ */
+function reactions_menu() {
+  return array(
+    'admin/settings/reactions' => array(
+      'title' => 'Reactions',
+      'descriptions' => '',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('reactions_configure'),
+      'access arguments' => array('access content'),
+      'type' => MENU_NORMAL_ITEM,
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_cron().
+ */
+function reactions_cron() {
+  $reactors = _reactions_reactors();
+  foreach (_reactions_variable_reactors() as $reactor) {
+    foreach ($reactors[$reactor]['gatherer']() as $reaction) {
+      reactions_save($reaction);
+    }
+  }
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function reactions_block($op = 'list', $delta = 0, $edit = array()) {
+  $function = '_reactions_block_'. $op;
+  if ($op != 'list') {
+    $function .= '_'. $delta;
+  }
+  if (function_exists($function)) {
+    return $function($edit);
+  }
+}
+
+/**
+ * Callback for implementation of hook_block():list.
+ */
+function _reactions_block_list() {
+  return array(
+    array('info' => t('Reactions for current page')),
+    array('info' => t('Reactions for whole site')),
+  );
+}
+
+/**
+ * Callback for implementation of hook_block():view:0.
+ */
+function _reactions_block_view_0() {
+  $url = implode('/', arg());
+  $result = db_query("SELECT * FROM {reactions} WHERE url = '%s' ORDER BY created DESC", $url);
+
+  $reactions = array();
+  while ($reaction = db_fetch_array($result)) {
+    $reactions[] = theme('reaction', $reaction);
+  }
+
+  return array(
+    'subject' => t('Reactions'),
+    'content' => theme('reactions', $reactions),
+  );
+}
+
+/**
+ * Callback for implementation of hook_block():view:1.
+ */
+function _reactions_block_view_1() {
+  $result = db_query_range('SELECT * FROM {reactions} ORDER BY created DESC', _reactions_variable_limit());
+
+  $reactions = array();
+  while ($reaction = db_fetch_array($result)) {
+    $reactions[] = theme('reaction', $reaction);
+  }
+
+  return array(
+    'subject' => t('Reactions'),
+    'content' => theme('reactions', $reactions),
+  );
+}
+
+/**
+ * Callback for implementation of hook_block():configure:1.
+ */
+function _reactions_block_configure_1() {
+  return array(
+    'reactions_limit' => array(
+      '#title' => t('Limit reactions'),
+      '#type' => 'textfield',
+      '#default_value' => _reactions_variable_limit(),
+      '#size' => 4,
+    ),
+  );
+}
+
+/**
+ * Callback for implementation of hook_block():save:1.
+ */
+function _reactions_block_save_1($edit = array()) {
+  _reactions_variable_limit($edit['reactions_limit']);
+}
+
+
+/* ************************************************************************* *
+ * REACTIONS HELPERS
+ * ************************************************************************* */
+
+function _reactions_reactors() {
+  return module_invoke_all('reactions_reactors');
+}
+
+function _reactions_variable($name, $default, $value = NULL) {
+  $name = 'reactions_'. $name;
+  if ($value !== NULL) {
+    variable_set($name, $value);
+  }
+  return variable_get($name, $default);
+}
+
+function _reactions_variable_reactors($value = NULL) {
+  return _reactions_variable('reactors', array(), $value);
+}
+
+function _reactions_variable_limit($value = NULL) {
+  return _reactions_variable('limit', 10, $value);
+}
+
+function reactions_configure() {
+  $form = array();
+
+  $form['intro'] = array(
+    '#value' => '<p>'. t('Select the reactors you want to use below and configure those that have extra options. The activated reactors will start functioning right away without any further involvement needed.') .'</p>',
+  );
+
+  $active_reactors = _reactions_variable_reactors();
+
+  $reactors = array();
+  foreach (_reactions_reactors() as $name => $reactor) {
+    $reactors[$name] = $reactor['name'] .' - <em>'. $reactor['description'] .'</em>';
+  }
+
+  $form['reactions_reactors'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Reactors'),
+    '#options' => $reactors,
+    '#default_value' => _reactions_variable_reactors(),
+  );
+
+  foreach (_reactions_reactors() as $name => $reactor) {
+    if (!empty($active_reactors[$name]) && $reactor['configurer']) {
+      $form[$name] = array(
+        '#type' => 'fieldset',
+        '#title' => $reactor['name'],
+        '#description' => t('Configure %reactor specific settings below.', array('%reactor' => $reactor['name'])),
+      );
+      $form[$name] += $reactor['configurer']();
+    }
+  }
+
+  return system_settings_form($form);
+}
