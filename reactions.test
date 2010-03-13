@@ -1,0 +1,41 @@
+<?php
+
+class ReactionsAPITestCase extends DrupalWebTestCase {
+  public static function getInfo() {
+    return array(
+      'name' => 'Reactions API',
+      'description' => 'Ensure that the Reactions API is functioning properly.',
+      'group' => 'Reactions',
+    );
+  }
+
+  public function setUp() {
+    parent::setUp('reactions');
+  }
+
+  public function testSave() {
+    $reaction = array(
+      'eid' => '123',
+      'type' => 'test',
+      'created' => date('Y-m-d H:i:s'),
+      'reactee' => $this->randomName(10),
+      'avatar' => 'http://example.com/avatar.png',
+      'message' => $this->randomName(100),
+      'url' => 'http://example.com/',
+    );
+
+    $saved = reactions_save($reaction);
+    $this->assertEqual(SAVED_NEW, $saved, t('New reactions are saved as such.'));
+
+    $saved = reactions_save($reaction);
+    $this->assertEqual(SAVED_UPDATED, $saved, t('Duplicate reactions are updated.'));
+
+    $reaction['eid'] = strrev($reaction['eid']);
+    $saved = reactions_save($reaction);
+    $this->assertEqual(SAVED_NEW, $saved, t('Reactions are unique based on their EID and type together.'));
+
+    $reaction['type'] = strrev($reaction['type']);
+    $saved = reactions_save($reaction);
+    $this->assertEqual(SAVED_NEW, $saved, t('Reactions are unique based on their EID and type together.'));
+  }
+}

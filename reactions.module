@@ -19,10 +19,10 @@ function reactions_save($reaction) {
 
   if ($rid) {
     $reaction['rid'] = $rid;
-    drupal_write_record('reactions', $reaction, 'rid');
+    return drupal_write_record('reactions', $reaction, 'rid');
   }
   else {
-    drupal_write_record('reactions', $reaction);
+    return drupal_write_record('reactions', $reaction);
   }
 }
 
