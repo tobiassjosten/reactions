@@ -2,5 +2,5 @@
 name = Reactions
 description = Aggregates "reactions" to site content by use of pluggable backends.
 core = 6.x
-version = "6.x-0.1"
+version = "6.x-dev"
 package = Reactions
