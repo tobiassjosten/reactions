@@ -1,4 +1,6 @@
 <?php
+// $Id$
+
 /**
  * This is the data you can use to render the reaction:
  * $reactions = array(

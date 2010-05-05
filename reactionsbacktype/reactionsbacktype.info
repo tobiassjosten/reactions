@@ -1,3 +1,4 @@
+; $Id$
 name = Backtype Reactions
 description = Provides a Backtype reactor for the Reactions module.
 core = 6.x
