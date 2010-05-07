@@ -35,7 +35,7 @@ function reactionsbacktype_gather() {
   // Check at most once every two minute, to keep below the 1000 requests limit
   $timestamp_threshold = _reactionsbacktype_variable_lastchecked() + 120;
   if ($timestamp_threshold >= time()) {
-    return;
+    return array();
   }
 
   $url = _reactionsbacktype_url();
