@@ -82,3 +82,19 @@ function reactions_schema() {
     ),
   );
 }
+
+/**
+ * Implementation of hook_update_N:6100.
+ */
+function reactions_update_6001() {
+  return array(
+    update_sql("
+      UPDATE
+        {variable}
+      SET
+        name = 'reactions_limit_1'
+      WHERE
+        name = 'reactions_limit'
+    ")
+  );
+}

@@ -47,27 +47,12 @@ function reactions_theme() {
       'arguments' => array(
         'reactions' => array(),
       ),
-    ),
-    'reactions_list' => array(
-      'arguments' => array(
-        'reactions' => array(),
-      ),
       'template' => 'reactions',
     ),
     'reactions_empty' => array(
       'arguments' => array(),
     ),
   );
-}
-
-/**
- * Default implementation of theme_reactions().
- */
-function theme_reactions($reactions = array()) {
-  if (!empty($reactions)) {
-    return theme('reactions_list', $reactions);
-  }
-  return theme('reactions_empty');
 }
 
 /**
@@ -80,8 +65,8 @@ function theme_reactions_header() {
 /**
  * Default implementation of theme_reactions_empty().
  */
-function theme_reactions_empty() {
-  return '<p class="empty">'. t('No reactions found') .'</p>';
+function theme_reactions_empty($text) {
+  return '<p class="empty">'. t($text) .'</p>';
 }
 
 
@@ -144,17 +129,28 @@ function _reactions_block_list() {
  * Callback for implementation of hook_block():view:0.
  */
 function _reactions_block_view_0() {
-  $url = implode('/', arg());
-  $result = db_query("SELECT * FROM {reactions} WHERE url = '%s' ORDER BY created DESC", $url);
+  $result = db_query_range(
+    "SELECT * FROM {reactions} WHERE url = '%s' ORDER BY created DESC",
+    implode('/', arg()),
+    _reactions_variable_limit_1()
+  );
 
   $reactions = array();
   while ($reaction = db_fetch_array($result)) {
     $reactions[] = theme('reaction', $reaction);
   }
 
+  $content = '';
+  if (!empty($reactions)) {
+    $content = theme('reactions', $reactions);
+  }
+  elseif ($text = _reactions_variable_empty_0()) {
+    $content = theme('reactions_empty', $text);
+  }
+
   return array(
     'subject' => t('Reactions'),
-    'content' => theme('reactions', $reactions),
+    'content' => $content,
   );
 }
 
@@ -162,38 +158,79 @@ function _reactions_block_view_0() {
  * Callback for implementation of hook_block():view:1.
  */
 function _reactions_block_view_1() {
-  $result = db_query_range('SELECT * FROM {reactions} ORDER BY created DESC', _reactions_variable_limit());
+  $result = db_query_range(
+    'SELECT * FROM {reactions} ORDER BY created DESC',
+    _reactions_variable_limit_1()
+  );
 
   $reactions = array();
   while ($reaction = db_fetch_array($result)) {
     $reactions[] = theme('reaction', $reaction);
   }
 
+  $content = '';
+  if (!empty($reactions)) {
+    $content = theme('reactions', $reactions);
+  }
+  elseif ($text = _reactions_variable_empty_1()) {
+    $content = theme('reactions_empty', $text);
+  }
+
   return array(
     'subject' => t('Reactions'),
-    'content' => theme('reactions', $reactions),
+    'content' => $content,
   );
 }
 
 /**
  * Callback for implementation of hook_block():configure:1.
  */
-function _reactions_block_configure_1() {
+function _reactions_block_configure_01($limit, $empty) {
   return array(
     'reactions_limit' => array(
       '#title' => t('Limit reactions'),
+      '#description' => t('Maximum number of reactions to show.'),
       '#type' => 'textfield',
-      '#default_value' => _reactions_variable_limit(),
+      '#default_value' => $limit,
       '#size' => 4,
     ),
+    'reactions_empty' => array(
+      '#title' => t('Empty text'),
+      '#description' => t(
+        'Text to display if there are no reactions yet. Leave empty to hide.'
+      ),
+      '#type' => 'textfield',
+      '#default_value' => $empty,
+    ),
   );
+}
+function _reactions_block_configure_0() {
+  return _reactions_block_configure_01(
+    _reactions_variable_limit_0(),
+    _reactions_variable_empty_0()
+  );
+}
+function _reactions_block_configure_1() {
+  return _reactions_block_configure_01(
+    _reactions_variable_limit_1(),
+    _reactions_variable_empty_1()
+  );
+}
+
+/**
+ * Callback for implementation of hook_block():save:0.
+ */
+function _reactions_block_save_0($edit = array()) {
+  _reactions_variable_limit_0($edit['reactions_limit']);
+  _reactions_variable_empty_0($edit['reactions_empty']);
 }
 
 /**
  * Callback for implementation of hook_block():save:1.
  */
 function _reactions_block_save_1($edit = array()) {
-  _reactions_variable_limit($edit['reactions_limit']);
+  _reactions_variable_limit_1($edit['reactions_limit']);
+  _reactions_variable_empty_1($edit['reactions_empty']);
 }
 
 
@@ -217,8 +254,32 @@ function _reactions_variable_reactors($value = NULL) {
   return _reactions_variable('reactors', array(), $value);
 }
 
-function _reactions_variable_limit($value = NULL) {
-  return _reactions_variable('limit', 10, $value);
+/**
+ * Number of reactions on 'current page' block.
+ */
+function _reactions_variable_limit_0($value = NULL) {
+  return _reactions_variable('limit_0', 10, $value);
+}
+
+/**
+ * Number of reactions on 'whole site' block.
+ */
+function _reactions_variable_limit_1($value = NULL) {
+  return _reactions_variable('limit_1', 10, $value);
+}
+
+/**
+ * Empty text for 'current page' block.
+ */
+function _reactions_variable_empty_0($value = NULL) {
+  return _reactions_variable('empty_0', 'No reactions found', $value);
+}
+
+/**
+ * Empty text for 'whole site' block.
+ */
+function _reactions_variable_empty_1($value = NULL) {
+  return _reactions_variable('empty_1', 'No reactions found', $value);
 }
 
 function reactions_configure() {

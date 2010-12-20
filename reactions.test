@@ -26,17 +26,95 @@ class ReactionsAPITestCase extends DrupalWebTestCase {
     );
 
     $saved = reactions_save($reaction);
-    $this->assertEqual(SAVED_NEW, $saved, t('New reactions are saved as such.'));
+    $this->assertEqual(
+      SAVED_NEW,
+      $saved,
+      t('New reactions are saved as such.')
+    );
 
     $saved = reactions_save($reaction);
-    $this->assertEqual(SAVED_UPDATED, $saved, t('Duplicate reactions are updated.'));
+    $this->assertEqual(
+      SAVED_UPDATED,
+      $saved,
+      t('Duplicate reactions are updated.')
+    );
 
     $reaction['eid'] = strrev($reaction['eid']);
     $saved = reactions_save($reaction);
-    $this->assertEqual(SAVED_NEW, $saved, t('Reactions are unique based on their EID and type together.'));
+    $this->assertEqual(
+      SAVED_NEW,
+      $saved,
+      t('Reactions are unique based on their EID and type together.')
+    );
 
     $reaction['type'] = strrev($reaction['type']);
     $saved = reactions_save($reaction);
-    $this->assertEqual(SAVED_NEW, $saved, t('Reactions are unique based on their EID and type together.'));
+    $this->assertEqual(
+      SAVED_NEW,
+      $saved,
+      t('Reactions are unique based on their EID and type together.')
+    );
+  }
+}
+
+class ReactionsAdminTestCase extends DrupalWebTestCase {
+  public static function getInfo() {
+    return array(
+      'name' => 'Reactions Administration',
+      'description' => 'Ensure that Reactions configuration is working.',
+      'group' => 'Reactions',
+    );
+  }
+
+  public function setUp() {
+    parent::setUp('reactions');
+  }
+
+  public function testBlockEmptyText() {
+    $block0 = reactions_block('view', 0);
+    $this->assertTrue(
+      FALSE !== strpos($block0['content'], 'No reactions found'),
+      t('Fresh database yields blocks with empty text')
+    );
+
+    $block1 = reactions_block('view', 1);
+    $this->assertTrue(
+      FALSE !== strpos($block1['content'], 'No reactions found'),
+      t('Fresh database yields blocks with empty text')
+    );
+  }
+
+  public function testBlockEmptyTextOther() {
+    variable_set('reactions_empty_0', 'Test');
+    $block0 = reactions_block('view', 0);
+    $this->assertTrue(
+      FALSE !== strpos($block0['content'], 'Test'),
+      t('Block use configured empty text')
+    );
+
+    variable_set('reactions_empty_1', 'Test');
+    $block1 = reactions_block('view', 1);
+    $this->assertTrue(
+      FALSE !== strpos($block1['content'], 'Test'),
+      t('Block use configured empty text')
+    );
+  }
+
+  public function testBlockEmptyTextNone() {
+    variable_set('reactions_empty_0', '');
+    $block0 = reactions_block('view', 0);
+    $this->assertEqual(
+      $block0['content'],
+      '',
+      t('No empty text hides block')
+    );
+
+    variable_set('reactions_empty_1', '');
+    $block1 = reactions_block('view', 1);
+    $this->assertEqual(
+      $block1['content'],
+      '',
+      t('No empty text hides block')
+    );
   }
 }
